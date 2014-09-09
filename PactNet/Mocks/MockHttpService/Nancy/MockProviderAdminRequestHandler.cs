@@ -3,6 +3,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Nancy;
+using Newtonsoft.Json;
+using PactNet.Configuration.Json;
 using PactNet.Mocks.MockHttpService.Comparers;
 using PactNet.Reporters;
 
@@ -13,15 +15,18 @@ namespace PactNet.Mocks.MockHttpService.Nancy
         private readonly IMockProviderRepository _mockProviderRepository;
         private readonly IProviderServiceRequestComparer _requestComparer;
         private readonly IReporter _reporter;
+        private readonly IDebugInformationContainer _debugInformationContainer;
 
         public MockProviderAdminRequestHandler(
             IMockProviderRepository mockProviderRepository,
             IReporter reporter,
-            IProviderServiceRequestComparer requestComparer)
+            IProviderServiceRequestComparer requestComparer,
+            IDebugInformationContainer debugInformationContainer)
         {
             _mockProviderRepository = mockProviderRepository;
             _reporter = reporter;
             _requestComparer = requestComparer;
+            _debugInformationContainer = debugInformationContainer;
         }
 
         public Response Handle(NancyContext context)
@@ -33,6 +38,12 @@ namespace PactNet.Mocks.MockHttpService.Nancy
             }
 
             if (context.Request.Method.Equals("GET", StringComparison.InvariantCultureIgnoreCase) &&
+                context.Request.Path == "/debug")
+            {
+                return HandleDebugInformationRequest();
+            }
+            
+            if (context.Request.Method.Equals("GET", StringComparison.InvariantCultureIgnoreCase) &&
                 context.Request.Path == "/interactions/verification")
             {
                 return HandleGetInteractionsVerificationRequest(context);
@@ -40,6 +51,13 @@ namespace PactNet.Mocks.MockHttpService.Nancy
 
             return GenerateResponse(HttpStatusCode.NotFound,
                 String.Format("The {0} request for path {1}, does not have a matching mock provider admin action.", context.Request.Method, context.Request.Path));
+        }
+
+        private Response HandleDebugInformationRequest()
+        {
+            var debugEntries = _debugInformationContainer.All();
+            var json = JsonConvert.SerializeObject(debugEntries, JsonConfig.ApiSerializerSettings);
+            return GenerateResponse(HttpStatusCode.OK, json);
         }
 
         private Response HandleDeleteInteractions()

@@ -10,5 +10,6 @@ namespace PactNet.Mocks.MockHttpService
         void Stop();
         void ClearInteractions();
         void VerifyInteractions();
+        void Debug();
     }
 }

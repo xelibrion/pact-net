@@ -23,11 +23,13 @@ namespace PactNet.Tests.Mocks.MockHttpService.Nancy
             _mockProviderRepository = Substitute.For<IMockProviderRepository>();
             _mockReporter = Substitute.For<IReporter>();
             _mockRequestComparer = Substitute.For<IProviderServiceRequestComparer>();
+            var debugInformationContainer = Substitute.For<IDebugInformationContainer>();
 
             return new MockProviderAdminRequestHandler(
                 _mockProviderRepository,
                 _mockReporter,
-                _mockRequestComparer);
+                _mockRequestComparer, 
+                debugInformationContainer);
         }
 
         [Fact]

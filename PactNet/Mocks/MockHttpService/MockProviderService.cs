@@ -112,6 +112,18 @@ namespace PactNet.Mocks.MockHttpService
                 throw new InvalidOperationException("Unable to verify interactions because the mock provider service is not running.");
             }
         }
+        
+        public void Debug()
+        {
+            if (_host != null)
+            {
+                PerformAdminHttpRequest(HttpMethod.Get, "/debug");
+            }
+            else
+            {
+                throw new InvalidOperationException("Unable to verify interactions because the mock provider service is not running.");
+            }
+        }
 
         private void RegisterInteraction()
         {

@@ -73,7 +73,7 @@ namespace Consumer.Tests
             Assert.NotEmpty(events);
             Assert.Equal(3, events.Count());
 
-
+            _mockProviderService.Debug();
             _mockProviderService.VerifyInteractions();
         }
 

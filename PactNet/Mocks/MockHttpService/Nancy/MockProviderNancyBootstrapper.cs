@@ -30,7 +30,7 @@ namespace PactNet.Mocks.MockHttpService.Nancy
                 return NancyInternalConfiguration.WithOverrides(c =>
                 {
                     c.ContextFactory = typeof (PactAwareContextFactory);
-                    c.RequestDispatcher = typeof(MockProviderNancyRequestDispatcher);
+                    c.RequestDispatcher = typeof (MockProviderNancyRequestDispatcher);
                 });
             }
         }
@@ -40,6 +40,20 @@ namespace PactNet.Mocks.MockHttpService.Nancy
             RegisterDependenciesWithNancyContainer(container);
 
             DiagnosticsHook.Disable(pipelines);
+
+            EnableDebugMode(container, pipelines);
+        }
+
+        private static void EnableDebugMode(TinyIoCContainer container, IPipelines pipelines)
+        {
+            var debug = new DebugInformationContainer();
+            container.Register(typeof(IDebugInformationContainer), debug);
+
+            pipelines.BeforeRequest += (ctx, token) =>
+            {
+                debug.Record(ctx.Request);
+                return null;
+            };
         }
 
         protected override void ConfigureApplicationContainer(TinyIoCContainer container)
@@ -51,7 +65,7 @@ namespace PactNet.Mocks.MockHttpService.Nancy
             container.Register<IProviderServiceRequestMapper, ProviderServiceRequestMapper>().AsMultiInstance();
             container.Register<IProviderServiceRequestComparer, ProviderServiceRequestComparer>().AsMultiInstance();
             container.Register<INancyResponseMapper, NancyResponseMapper>().AsMultiInstance();
-            container.Register(typeof(IMockContextService), _mockContextService);
+            container.Register(typeof (IMockContextService), _mockContextService);
             container.Register<IMockProviderRequestHandler, MockProviderRequestHandler>().AsMultiInstance();
             container.Register<IMockProviderAdminRequestHandler, MockProviderAdminRequestHandler>().AsMultiInstance();
             container.Register<IMockProviderRepository, MockProviderRepository>().AsSingleton();
