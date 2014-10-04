@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using PactNet.Mocks.MockHttpService.Models;
@@ -40,16 +41,15 @@ namespace PactNet.Mocks.MockHttpService.Mappers
 
             var to = new HttpRequestMessage(requestHttpMethod, requestPath);
 
+            var contentRelatedHeaders = new Dictionary<string, string>();
             if (from.Headers != null && from.Headers.Any())
             {
                 foreach (var requestHeader in from.Headers)
                 {
-                    //TODO: Check if there are any other headers which need special treatment
-                    //Handle the content-type header as little differently, as they need to be attached to the content when using a HttpRequestMessage
-                    //Strip the Content-Length header as is automatically attached to the request
-                    if (requestHeader.Key.Equals("Content-Type", StringComparison.InvariantCultureIgnoreCase) || 
-                        requestHeader.Key.Equals("Content-Length", StringComparison.InvariantCultureIgnoreCase))
+                    //Strip any Content- headers as they need to be attached to Request content when using a HttpRequestMessage
+                    if (requestHeader.Key.IndexOf("Content-", StringComparison.InvariantCultureIgnoreCase) == 0)
                     {
+                        contentRelatedHeaders.Add(requestHeader.Key, requestHeader.Value);
                         continue;
                     }
 
@@ -60,7 +60,24 @@ namespace PactNet.Mocks.MockHttpService.Mappers
             if (from.Body != null)
             {
                 HttpBodyContent bodyContent = _httpBodyContentMapper.Convert(from.Body, from.Headers);
-                to.Content = _httpContentMapper.Convert(bodyContent);
+                var httpContent = _httpContentMapper.Convert(bodyContent);
+
+                //Set the content related headers
+                if (httpContent != null && contentRelatedHeaders.Any())
+                {
+                    foreach (var contentHeader in contentRelatedHeaders)
+                    {
+                        if (contentHeader.Key.Equals("Content-Type", StringComparison.InvariantCultureIgnoreCase) && 
+                            httpContent.Headers.Any(x => x.Key.Equals("Content-Type", StringComparison.InvariantCultureIgnoreCase)))
+                        {
+                            continue;
+                        }
+
+                        httpContent.Headers.Add(contentHeader.Key, contentHeader.Value);
+                    }
+                }
+
+                to.Content = httpContent;
             }
 
             return to;

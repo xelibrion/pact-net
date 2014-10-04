@@ -3,6 +3,7 @@ using System.IO.Abstractions;
 using System.Linq;
 using System.Net.Http;
 using Newtonsoft.Json;
+using PactNet.Mocks.MockHttpService;
 using PactNet.Mocks.MockHttpService.Models;
 using PactNet.Mocks.MockHttpService.Validators;
 using PactNet.Models;
@@ -13,24 +14,28 @@ namespace PactNet
     public class PactVerifier : IPactVerifier, IProviderStates
     {
         private readonly IFileSystem _fileSystem;
-        private readonly Func<HttpClient, IProviderServiceValidator> _providerServiceValidatorFactory;
+        private readonly Func<IHttpRequestSender, IProviderServiceValidator> _providerServiceValidatorFactory;
+        private readonly HttpClient _httpClient;
+        private IHttpRequestSender _httpRequestSender;
 
         public string ConsumerName { get; private set; }
         public string ProviderName { get; private set; }
         public ProviderStates ProviderStates { get; private set; }
-        public HttpClient HttpClient { get; private set; }
         public string PactFileUri { get; private set; }
 
-        internal PactVerifier(IFileSystem fileSystem, 
-            Func<HttpClient, IProviderServiceValidator> providerServiceValidatorFactory)
+        internal PactVerifier(IFileSystem fileSystem,
+            Func<IHttpRequestSender, IProviderServiceValidator> providerServiceValidatorFactory, 
+            HttpClient httpClient)
         {
             _fileSystem = fileSystem;
             _providerServiceValidatorFactory = providerServiceValidatorFactory;
+            _httpClient = httpClient;
         }
 
         public PactVerifier() : this(
             new FileSystem(),
-            httpClient => new ProviderServiceValidator(httpClient, new Reporter()))
+            httpRequestSender => new ProviderServiceValidator(httpRequestSender, new Reporter()),
+            new HttpClient())
         {
         }
 
@@ -83,7 +88,25 @@ namespace PactNet
             }
 
             ProviderName = providerName;
-            HttpClient = httpClient;
+            _httpRequestSender = new HttpClientRequestSender(httpClient);
+                
+            return this;
+        }
+
+        public IPactVerifier ServiceProvider(string providerName, Func<ProviderServiceRequest, ProviderServiceResponse> httpRequestSender)
+        {
+            if (String.IsNullOrEmpty(providerName))
+            {
+                throw new ArgumentException("Please supply a non null or empty providerName");
+            }
+
+            if (httpRequestSender == null)
+            {
+                throw new ArgumentException("Please supply a non null httpRequestSenderFunc");
+            }
+
+            ProviderName = providerName;
+            _httpRequestSender = new CustomRequestSender(httpRequestSender);
 
             return this;
         }
@@ -119,9 +142,9 @@ namespace PactNet
 
         public void Verify(string providerDescription = null, string providerState = null)
         {
-            if (HttpClient == null)
+            if (_httpRequestSender == null)
             {
-                throw new InvalidOperationException("HttpClient has not been set, please supply a HttpClient using the ServiceProvider method.");
+                throw new InvalidOperationException("httpRequestSender has not been set, please supply a httpClient or httpRequestSenderFunc using the ServiceProvider method.");
             }
 
             if (String.IsNullOrEmpty(PactFileUri))
@@ -132,12 +155,36 @@ namespace PactNet
             ProviderServicePactFile pactFile;
             try
             {
-                var pactFileJson = _fileSystem.File.ReadAllText(PactFileUri);
+                string pactFileJson;
+
+                if (IsWebUri(PactFileUri))
+                {
+                    var request = new HttpRequestMessage(HttpMethod.Get, PactFileUri);
+                    request.Headers.Add("Accept", "application/json");
+
+                    var response = _httpClient.SendAsync(request).Result;
+
+                    try
+                    {
+                        response.EnsureSuccessStatusCode();
+                        pactFileJson = response.Content.ReadAsStringAsync().Result;
+                    }
+                    finally
+                    {
+                        Dipose(request);
+                        Dipose(response);
+                    }
+                }
+                else //Assume it's a file uri, and we will just throw if it does not exist
+                {
+                    pactFileJson = _fileSystem.File.ReadAllText(PactFileUri);
+                }
+
                 pactFile = JsonConvert.DeserializeObject<ProviderServicePactFile>(pactFileJson);
             }
-            catch (System.IO.IOException)
+            catch (Exception ex)
             {
-                throw new InvalidOperationException(String.Format("Json Pact file could not be retrieved using uri \'{0}\'.", PactFileUri));
+                throw new InvalidOperationException(String.Format("Json Pact file could not be retrieved using uri \'{0}\'.", PactFileUri), ex);
             }
 
             //Filter interactions
@@ -151,7 +198,21 @@ namespace PactNet
                 pactFile.Interactions = pactFile.Interactions.Where(x => x.ProviderState.Equals(providerState));
             }
 
-            _providerServiceValidatorFactory(HttpClient).Validate(pactFile, ProviderStates);
+            _providerServiceValidatorFactory(_httpRequestSender).Validate(pactFile, ProviderStates);
+        }
+
+        private static bool IsWebUri(string uri)
+        {
+            return uri.StartsWith("http://", StringComparison.InvariantCultureIgnoreCase) ||
+                   uri.StartsWith("https://", StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        private static void Dipose(IDisposable disposable)
+        {
+            if (disposable != null)
+            {
+                disposable.Dispose();
+            }
         }
     }
 }
