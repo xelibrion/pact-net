@@ -40,6 +40,9 @@
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="DiffPlex">
+      <HintPath>..\packages\DiffPlex.1.2.1\lib\portable-net40+sl50+win+wpa81+wp80\DiffPlex.dll</HintPath>
+    </Reference>
     <Reference Include="Nancy, Version=0.23.1.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\Nancy.0.23.1\lib\net40\Nancy.dll</HintPath>
@@ -168,6 +171,7 @@
     <Compile Include="Reporters\ConsoleReportOutputter.cs" />
     <Compile Include="Reporters\IReporter.cs" />
     <Compile Include="Reporters\IReportOutputter.cs" />
+    <Compile Include="Reporters\Report.cs" />
     <Compile Include="Reporters\Reporter.cs" />
     <Compile Include="Validators\IPactValidator.cs" />
   </ItemGroup>
